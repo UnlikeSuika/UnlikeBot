@@ -29,6 +29,13 @@ async def on_message(message):
     print("----- on_message -----")
     print("author name: "+message.author.name)
     print("content: "+message.content)
+    if message.author == client.user:
+        return
+    if message.content.lower() == "ayy":
+        await client.send_message(message.channel, "lmao")
+    elif "unlike" in message.content.lower():
+        await client.send_message(message.channel, "**U N L I K E**")
+    
     if message.content.startswith("."):
         command_str = message.content
         command_words = message.content.split()
@@ -52,8 +59,10 @@ async def on_message(message):
                 is_curious = True
                 await client.send_message(
                     message.channel,
-                    "<:chew:313116045718323211>\n    <:duwang:23205839219615334"
-                    +"5>")
+                    "<:chew:313116045718323211>\n"
+                    +"    <:duwang:232058392196153345>")
+        elif command_words[0].lower() == ".unlikesuika":
+            await client.send_message(message.channel, "<@119701092731715585>")
 
 
 @client.event
