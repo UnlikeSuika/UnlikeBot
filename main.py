@@ -7,7 +7,7 @@ token_file = open("token.txt", "r")
 token = token_file.read()
 token_file.close()
 
-is_curious = True
+is_curious = False
 channels = []
 
 
@@ -15,6 +15,7 @@ channels = []
 async def on_ready():
     print("Name: "+client.user.name)
     print("ID: "+client.user.id)
+    global channels
     channels = client.get_all_channels()
     for channel in channels:
         try:
@@ -31,14 +32,18 @@ async def on_message(message):
     if message.content.startswith("."):
         command_str = message.content
         command_words = message.content.split()
-        if command_words[0] == ".ping":
+        if command_words[0].lower() == ".ping":
             await client.send_message(message.channel, "Pong!")
-        elif command_words[0] == ".pong":
+        elif command_words[0].lower() == ".pong":
             await client.send_message(message.channel, "Ping!")
-        elif command_words[0] == ".curious":
+        elif command_words[0].lower() == ".curious":
+            if (len(command_words) < 2
+                    or command_words[1].lower() not in ["on", "off"]):
+                await client.send_message(message.channel,
+                                          "`.curious on` or `.curious off`?")
+                return
             global is_curious
-            print(str(is_curious))
-            if is_curious:
+            if command_words[1].lower() == "off":
                 await client.send_message(
                     message.channel,
                     "Okay, I'll stop disturbing you while you type.")
