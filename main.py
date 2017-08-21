@@ -7,11 +7,54 @@ token_file = open("token.txt", "r")
 token = token_file.read()
 token_file.close()
 
+is_curious = True
+channels = []
+
+
 @client.event
 async def on_ready():
     print("Name: "+client.user.name)
     print("ID: "+client.user.id)
-    print("Now up and running!")
-    print("----------")
+    channels = client.get_all_channels()
+    for channel in channels:
+        try:
+            await client.send_message(channel, "UnlikeBot, up and running!")
+        except:
+            print("Cannot access channel: "+channel.name)
+
+
+@client.event
+async def on_message(message):
+    print("----- on_message -----")
+    print("author name: "+message.author.name)
+    print("content: "+message.content)
+    if message.content.startswith("."):
+        command_str = message.content
+        command_words = message.content.split()
+        if command_words[0] == ".ping":
+            await client.send_message(message.channel, "Pong!")
+        elif command_words[0] == ".pong":
+            await client.send_message(message.channel, "Ping!")
+        elif command_words[0] == ".curious":
+            global is_curious
+            print(str(is_curious))
+            if is_curious:
+                await client.send_message(
+                    message.channel,
+                    "Okay, I'll stop disturbing you while you type.")
+                is_curious = False
+            else:
+                is_curious = True
+                await client.send_message(
+                    message.channel,
+                    "<:chew:313116045718323211>\n    <:duwang:23205839219615334"
+                    +"5>")
+
+
+@client.event
+async def on_typing(channel, user, when):
+    if is_curious:
+        await client.send_message(channel,"What are you typing, "+user.name+"?")
+
 
 client.run(token)
