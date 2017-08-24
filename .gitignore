@@ -1,1 +1,5 @@
 token.txt
+*.swp
+*.un
+*.pyc
+\__pycache__
