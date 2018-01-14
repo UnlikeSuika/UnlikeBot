@@ -54,13 +54,14 @@ async def on_message(message):
                 uno_host_channel = None
             return
 
-        if command_words[0].lower() == ".ping":
+        if command_words[0].lower() == ".help":
+            await post_command_list(message.channel)
+        elif command_words[0].lower() == ".ping":
             await client.send_message(message.channel, "Pong!")
         elif command_words[0].lower() == ".pong":
             await client.send_message(message.channel, "Ping!")
         elif command_words[0].lower() == ".curious":
-            if (
-                    len(command_words) < 2 
+            if (len(command_words) < 2 
                     or command_words[1].lower() not in ["on", "off"]):
                 await client.send_message(
                         message.channel,
@@ -190,5 +191,17 @@ async def on_typing(channel, user, when):
                 + user.name
                 + "?")
 
+
+async def post_command_list(channel):
+    content = "`.help` - You probably already know this.\n"
+    content += "`.uno`- Hosts a game for UNO.\n"
+    content += "`.ping` - Responds with Pong.\n"
+    content += "`.pong` - Responds with Ping.\n"
+    content += "`.curious [on/off]` - Bugs a person whenever they type when "
+    content += "toggled on.\n"
+    content += "`.unlikesuika` - Pings the master.\n"
+    content += "`ayy` - lmao"
+    await client.send_message(channel, content)
+    
 
 client.run(token)

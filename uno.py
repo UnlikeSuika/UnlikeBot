@@ -832,7 +832,7 @@ class Game:
                             "Invalid input.")
                     return True
                 try:
-                    card_index = int(eval(content.split()[1])) - 1
+                    index = int(eval(content.split()[1])) - 1
                 except:
                     await message_player(
                             self.players[self.turn],
@@ -1060,6 +1060,10 @@ async def start(input_players, input_client, input_channel):
         players.append(Player(input_player))
     channel = input_channel
     await announce([], "The game is starting up...")
+    await announce([input_players],
+            "The game is played by entering commands to the bot"
+            + " by PM. Please check the PM with the bot for instructions. "
+            + "Enter `.help` for further help.")
     game = Game(players)
     if not await game.announce_if_first_discard_wild():
         await game.announce_turn()
@@ -1075,7 +1079,10 @@ async def send_help(user):
     global client
     await client.send_message(
             user,
-            "```.hand - Shows what cards you currently have.\n"
+            "```.p <card index> - During your turn, plays a card with the given"
+            + " index.\n"
+            + ".d = During your turn, draws a card for you.\n"
+            + ".hand - Shows what cards you currently have.\n"
             + ".turn - Shows whose turn it currently is and how many cards they"
             + " have.\n"
             + ".last - Shows which card was discarded last.\n"
