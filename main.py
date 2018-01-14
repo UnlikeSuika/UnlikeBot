@@ -156,7 +156,8 @@ async def on_message(message):
             elif message.author != uno_players[0]:
                 await client.send_message(
                         message.channel,
-                        "You are not the dealer.")
+                        "You are not the dealer. The dealer must start the "
+                        + "game.")
             else:
                 is_playing_uno = True
                 await uno.start(uno_players, client, uno_host_channel)

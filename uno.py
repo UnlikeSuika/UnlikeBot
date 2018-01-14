@@ -379,27 +379,6 @@ class Game:
                     Card(CardColor["BLACK"], CardType["WILD_DRAW_FOUR"]))
         self.__shuffle_deck__()
 
-    async def announce_if_first_discard_wild(self):
-        """
-        If the first discarded card is Wild card, announces so
-
-        Return:
-        bool: True if the first discarded card is a Wild card, False otherwise
-        """
-        if self.is_wild_during_init:
-            await announce(
-                    [self.players[self.turn]],
-                    "The first discarded card is a wild card. **"
-                    + self.players[self.turn].get_user().name
-                    + "** will choose a color.")
-            await message_player(
-                    self.players[self.turn],
-                    "The first discarded card is a wild card. Choose a color by"
-                    + " typing `.r`(red), `.y`(yellow), `.g`(green), or "
-                    + "`.b`(blue).")
-            return True
-        return False
-
     def __shuffle_deck__(self):
         """Shuffles the current deck"""
         shuffle(self.deck)
@@ -410,13 +389,16 @@ class Game:
 
         Argument:
         player(Player): The player receiving the topdeck
+
+        Return:
+        bool: False if the deck ran out of cards, True otherwise
         """
         # Move discarded cards to the deck if the deck is empty
         if not self.deck:
             self.deck = self.discard[:-1]
             self.__shuffle_deck__()
             self.discard = [self.discard[-1]]
-            # Ran out of cards from deck/discard, so player can't draw
+            # Ran out of cards from deck/discard, so player cannot draw
             if not self.deck:
                 return False
         player.receive_card(self.deck[-1])
@@ -460,12 +442,13 @@ class Game:
         if (self.wild_color != CardColor["BLACK"]
                 and card.get_color() == self.wild_color):
             return True
-        elif card.equals_color(self.discard[-1]):
+        if card.equals_color(self.discard[-1]):
             return True
         if card.equals_type(self.discard[-1]):
             return True
         if card.get_color() == CardColor["BLACK"]:
             return True
+        return False
 
     async def __play_card__(self, index):
         """
@@ -473,9 +456,6 @@ class Game:
 
         Argument:
         index(int): Index of the card
-
-        Return:
-        bool: False if the card played in this turn is the last card in hand
         """
         card = self.players[self.turn].get_cards()[index]
         self.__discard_player_card__(self.players[self.turn], index)
@@ -499,8 +479,7 @@ class Game:
                     self.players[self.turn],
                     "Your turn has been skipped.")
             self.__next_turn__()
-            self.wild_color == CardColor["BLACK"]
-            await self.announce_turn()
+            self.wild_color = CardColor["BLACK"]
         # Draw Two card
         elif card.get_type() == CardType["DRAW_TWO"]:
             self.__next_turn__()
@@ -543,8 +522,7 @@ class Game:
             await message_player(self.players[self.turn], pm_str)
             self.players[self.turn].sort_cards()
             self.__next_turn__()
-            self.wild_color == CardColor["BLACK"]
-            await self.announce_turn()
+            self.wild_color = CardColor["BLACK"]
         # Reverse card
         elif card.get_type() == CardType["REVERSE"]:
             # Acts the same way as Skip card if there are only two players
@@ -566,8 +544,7 @@ class Game:
                 else:
                     self.clockwise = True
                 self.__next_turn__()
-            self.wild_color == CardColor["BLACK"]
-            await self.announce_turn()
+            self.wild_color = CardColor["BLACK"]
         # Wild card
         elif card.get_type() == CardType["WILD"]:
             await announce(
@@ -585,16 +562,15 @@ class Game:
             # Determine if Wild Draw Four card is legal
             self.is_legal_wd4 = True
             for card_it in self.players[self.turn].get_cards():
-                if card_it.get_type() == CardType['WILD_DRAW_FOUR']:
+                if card_it.get_color() == CardColor["BLACK"]:
                     continue
-                elif (self.discard[-2].get_color() == CardColor['BLACK']
-                        and card_it.get_color == self.wild_color):
+                elif card_it.get_color() == self.wild_color:
                     self.is_legal_wd4 = False
                     break
-                elif (self.discard[-2].get_color() != CardColor['BLACK']
-                        and card_it.equals_color(self.discard[-2])):
+                elif card_it.equals_color(self.discard[-2]):
                     self.is_legal_wd4 = False
                     break
+            self.wild_color = CardColor["BLACK"]
             await announce(
                     [self.players[self.turn]],
                     "Waiting for **"
@@ -609,89 +585,105 @@ class Game:
         else:
             self.__next_turn__()
             self.wild_color = CardColor["BLACK"]
-            await self.announce_turn()
         # If the player wins the match
         if not self.players[turn_before].get_cards():
             self.winner_index = turn_before
-            return False
-        return True
 
+    async def announce_if_first_discard_wild(self):
+        """
+        If the first discarded card is Wild card, announces so
+
+        Return:
+        bool: True if the first discarded card is a Wild card, False otherwise
+        """
+        if self.is_wild_during_init:
+            await announce(
+                    [self.players[self.turn]],
+                    "The first discarded card is a wild card. **"
+                    + self.players[self.turn].get_user().name
+                    + "** will choose a color.")
+            await message_player(
+                    self.players[self.turn],
+                    "The first discarded card is a wild card. Choose a color by"
+                    + " typing `.r`(red), `.y`(yellow), `.g`(green), or "
+                    + "`.b`(blue).")
+            return True
+        return False
+    
     async def run(self, message):
-        """Ask the current player what to do, and move on to the next turn.
+        """Runs the game with the given message.
+
+        Argument:
+        message(Discord.message): Message to process
 
         Return:
         bool: False if the game has ended this turn, True otherwise
         """
+        # Process only the command given by the current player
         if message.author != self.players[self.turn].get_user():
             return True
         content = message.content.lower()
-        # Choosing a color for Wild card (discarded first)
+        command = content.split()[0]
+        # Choosing a color for Wild card (discarded prior to starting the game)
         if self.is_wild_during_init:
-            if content.split()[0] not in [".r", ".y", ".g", ".b"]:
-                # DEBUG
-                print("run 1")
-                # DEBUG END
+            if command not in [".r", ".y", ".g", ".b"]:
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
-            index = [".r", ".y", ".g", ".b"].index(content.split()[0])
-            self.wild_color = CardColor(index + 1)
+            color_index = [".r", ".y", ".g", ".b"].index(command)
+            self.wild_color = CardColor(color_index + 1)
             await announce([self.players[self.turn]],
                     "**"
                     + self.players[self.turn].get_user().name
                     + "** has called `"
-                    + str(CardColor(index + 1).name)
+                    + self.wild_color.name
                     + "` as the wild color.")
             self.is_wild_during_init = False
             await self.announce_turn()
             return True
-        # Choosing a color for a played Wild
+        # Choosing a color when a Wild card is played
         elif self.is_playing_wild:
-            if content.split()[0] not in [".r", ".y", ".g", ".b"]:
-                # DEBUG
-                print("run 2")
-                # DEBUG END
+            if command not in [".r", ".y", ".g", ".b"]:
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
-            index = [".r", ".y", ".g", ".b"].index(content.split()[0])
-            self.wild_color = CardColor(index + 1)
+            color_index = [".r", ".y", ".g", ".b"].index(command)
+            self.wild_color = CardColor(color_index + 1)
             await announce([self.players[self.turn]],
                     "**"
                     + self.players[self.turn].get_user().name
                     + "** has called "
-                    + str(CardColor(index + 1).name)
+                    + self.wild_color.name
                     + " as the wild color.")
             self.__next_turn__()
             await self.announce_turn()
             self.is_playing_wild = False
+            # If the wild card was the last card, end the game
             if self.winner_index != -1:
                 return False
             return True
         # Choosing a color for WD4
         elif self.is_playing_wd4: 
-            if content.split()[0] not in [".r", ".y", ".g", ".b"]:
-                # DEBUG
-                print("run 3")
-                # DEBUG END
+            if command not in [".r", ".y", ".g", ".b"]:
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
-            index = [".r", ".y", ".g", ".b"].index(content.split()[0])
-            self.wild_color = CardColor(index + 1)
+            color_index = [".r", ".y", ".g", ".b"].index(command)
+            self.wild_color = CardColor(color_index + 1)
             await announce([self.players[self.turn]],
                     "**"
                     + self.players[self.turn].get_user().name
                     + "** has called `"
-                    + CardColor(index + 1).name
+                    + self.wild_color.name
                     + "` as the wild color.")
             self.wd4_player_index = self.turn
             self.__next_turn__()
             await announce([self.players[self.turn]],
                     "**"
                     + self.players[self.turn].get_user().name
-                    + "** can challenge this Wild Draw Four. Waiting for their "
+                    + "** may challenge this Wild Draw Four. Waiting for their "
                     + "response...")
             await message_player(self.players[self.turn],
-                    "You are about to draw four cards be skipped. Will you "
-                    + "challenge **"
+                    "You are about to draw four cards and be skipped. The Wild "
+                    + "Draw Four is legal if and only if the player has no "
+                    + " card that can be played. Will you challenge **"
                     + self.players[self.wd4_player_index].get_user().name
                     + "**'s Wild Draw Four? Answer by `.y`(yes) or "
                     + "`.n`(no).")
@@ -700,17 +692,14 @@ class Game:
             return True
         # Waiting for reply regarding whether to challenge the WD4
         elif self.is_checking_challenge:
-            if content.split()[0] not in [".y", ".n"]:
-                # DEBUG
-                print("run 4")
-                # DEBUG END
+            if command not in [".y", ".n"]:
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
             # If challenged
-            if content.split()[0] == ".y":
+            if command == ".y":
                 await announce(
                         [self.players[self.turn],
-                            self.players[self.wd4_player_index]],
+                                self.players[self.wd4_player_index]],
                         "**"
                         + self.players[self.turn].get_user().name
                         + "** has challenged **"
@@ -719,8 +708,8 @@ class Game:
                 await message_player(self.players[self.wd4_player_index],
                         "Your Wild Draw Four card has been challenged by **"
                         + self.players[self.turn].get_user().name
-                        + "**. He will be shown your hand to prove whether your"
-                        + " play was legal or not.")
+                        + "**. They will be shown your hand to prove whether "
+                        + "your play was legal or not.")
                 await message_player(self.players[self.turn],
                         "**"
                         + self.players[self.wd4_player_index].get_user().name
@@ -792,34 +781,33 @@ class Game:
                     self.players[self.turn],
                     "Your turn is skipped.")
             self.__next_turn__()
-
-            await self.announce_turn()
             self.is_legal_wd4 = False
             self.wd4_player_index = -1
             self.is_checking_challenge = False
             if self.winner_index != -1:
                 return False
+            await self.announce_turn()
+            return True
         # The current player chose to draw
         elif self.is_drawing:
-            if content.split()[0] not in [".k", ".p"]:
-                # DEBUG
-                print("run 5")
-                # DEBUG END
+            if command not in [".k", ".p"]:
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
             new_card = self.players[self.turn].get_cards()[-1]
             # Only play the card if the card can be played
             if content.split()[0] == ".p":
                 if self.__can_be_played__(new_card):
-                    return await self.__play_card__(-1)
-                else:
-                    # DEBUG
-                    print("run 5.1: "+str(new_card))
-                    # DEBUG END
-                    await message_player(
-                            self.players[self.turn],
-                            "This card cannot be played. You have no choice "
-                            + "but to keep this card.")
+                    self.is_drawing = False
+                    await self.__play_card__(-1)
+                    if (not self.is_playing_wild
+                            and not self.is_playing_wd4):
+                        await self.announce_turn()
+                        return True
+                await message_player(
+                        self.players[self.turn],
+                        "This card cannot be played. You have no choice "
+                        + "but to keep this card.")
+            # Keep the card
             await announce(
                     [self.players[self.turn]],
                     "**"
@@ -833,28 +821,19 @@ class Game:
         # Normal state
         else:
             if ((not content.strip())
-                    or (content.split()[0] not in [".p", ".d"])):
-                # DEBUG
-                print("run 6")
-                # DEBUG END
+                    or (command not in [".p", ".d"])):
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
             # Choosing a card to play
-            elif content.split()[0] == ".p":
+            elif command == ".p":
                 if len(content.split()) < 2:
-                    # DEBUG
-                    print("run 7")
-                    # DEBUG END
                     await message_player(
                             self.players[self.turn],
                             "Invalid input.")
                     return True
                 try:
-                    index = int(eval(content.split()[1])) - 1
+                    card_index = int(eval(content.split()[1])) - 1
                 except:
-                    # DEBUG
-                    print("run 8")
-                    # DEBUG END
                     await message_player(
                             self.players[self.turn],
                             "Invalid input.")
@@ -867,21 +846,19 @@ class Game:
                     return True
                 player_card = self.players[self.turn].get_cards()[index]
                 if self.__can_be_played__(player_card):
-                    is_continuing = await self.__play_card__(index)
-                    if (not is_continuing
-                        and not self.is_playing_wild
-                        and not self.is_playing_wd4
-                        and not self.checking_challenge):
-                        return False
-                    else:
-                        return True
+                    await self.__play_card__(index)
+                    if (not self.is_playing_wild and not self.is_playing_wd4):
+                        if self.winner_index != -1:
+                            return False
+                        await self.announce_turn()
+                    return True
                 else:
                     await message_player(
                             self.players[self.turn],
                             "This card cannot be played.")
                     return True
             # Case of drawing a card
-            elif content.split()[0] == ".d":
+            elif command == ".d":
                 if not self.__give_topdeck_to_player__(
                         self.players[self.turn]):
                     await announce(
@@ -913,11 +890,11 @@ class Game:
             return True
 
     async def announce_turn(self):
-        """Announces whose turn it is right now"""
+        """Announces whose turn it is currently"""
         announce_str = (
                 "It is now **"
                 + self.players[self.turn].get_user().name
-                + "**'s turn, with last discarded card being`"
+                + "**'s turn, with last discarded card being `"
                 + str(self.discard[-1])
                 + "`.")
         if self.wild_color != CardColor["BLACK"]:
@@ -931,7 +908,8 @@ class Game:
                 + self.players[self.turn].get_hand()
                 + "\nThe last discarded card is `"
                 + str(self.discard[-1])
-                + "`.")
+                + "`.\n Choose a card to play (`.p <card index>`) or draw a "
+                + "card (`.d`).")
         if self.wild_color != CardColor["BLACK"]:
             pm_str += (
                     " The color for Wild card is **"
