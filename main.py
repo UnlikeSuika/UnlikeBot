@@ -47,12 +47,6 @@ async def on_message(message):
         command_words = message.content.split()
 
         global is_playing_uno, uno_players, uno_host_channel
-        if is_playing_uno:
-            if not await uno.process_message(message):
-                is_playing_uno = False
-                uno_players = []
-                uno_host_channel = None
-            return
 
         if command_words[0].lower() == ".help":
             await post_command_list(message.channel)
@@ -81,6 +75,12 @@ async def on_message(message):
                         + "    <:duwang:232058392196153345>")
         elif command_words[0].lower() == ".unlikesuika":
             await client.send_message(message.channel, "<@119701092731715585>")
+        elif is_playing_uno:
+            if not await uno.process_message(message):
+                # Game ended
+                is_playing_uno = False
+                uno_players = []
+                uno_host_channel = None
         elif command_words[0].lower() == ".uno":
             if uno_players:
                 await client.send_message(

@@ -1,3 +1,12 @@
+## TODO:
+## 
+## - Show the top card right after showing whose turn it is
+## - Allow commands for spelling out the entire word instead of
+##   using abbreviations (e.g. Accept `.red` as well as `.r`)
+## - UNO should be mentioned when only one card is left in hand
+## - non-command PM to UnlikeBot during ongoing UNO game works like `.send`
+## - mention when the deck runs out and discard pile goes into deck
+
 from enum import Enum
 import random
 from random import shuffle
@@ -223,7 +232,7 @@ class Player:
         str
         """
         index = 1
-        str_repr = "```"
+        str_repr = "```\n"
         for card in self.cards:
             str_repr += str(index) + "." + str(card) + "  "
             index += 1
@@ -459,13 +468,18 @@ class Game:
         """
         card = self.players[self.turn].get_cards()[index]
         self.__discard_player_card__(self.players[self.turn], index)
-        await announce(
-                [self.players[self.turn]],
-                "**"
-                + self.players[self.turn].get_user().name
-                + "** has played `"
-                + str(card)
-                + "`.")
+        num_cards_in_hand = len(self.players[self.turn].get_cards())
+        msg_str = "**"
+        msg_str += self.players[self.turn].get_user().name
+        msg_str += "** has played `"
+        msg_str += str(card)
+        msg_str += "` and now has **"
+        msg_str += str(num_cards_in_hand)
+        msg_str += " card"
+        if num_cards_in_hand != 1:
+            msg_str += "s"
+        msg_str += "** in hand."
+        await announce([self.players[self.turn]], msg_str)
         turn_before = self.turn
         # Skip card
         if card.get_type() == CardType["SKIP"]:
@@ -639,7 +653,6 @@ class Game:
                     + "` as the wild color.")
             self.is_wild_during_init = False
             await self.announce_turn()
-            return True
         # Choosing a color when a Wild card is played
         elif self.is_playing_wild:
             if command not in [".r", ".y", ".g", ".b"]:
@@ -659,7 +672,6 @@ class Game:
             # If the wild card was the last card, end the game
             if self.winner_index != -1:
                 return False
-            return True
         # Choosing a color for WD4
         elif self.is_playing_wd4: 
             if command not in [".r", ".y", ".g", ".b"]:
@@ -683,13 +695,12 @@ class Game:
             await message_player(self.players[self.turn],
                     "You are about to draw four cards and be skipped. The Wild "
                     + "Draw Four is legal if and only if the player has no "
-                    + " card that can be played. Will you challenge **"
+                    + "card that can be played. Will you challenge **"
                     + self.players[self.wd4_player_index].get_user().name
                     + "**'s Wild Draw Four? Answer by `.y`(yes) or "
                     + "`.n`(no).")
             self.is_playing_wd4 = False
             self.is_checking_challenge = True
-            return True
         # Waiting for reply regarding whether to challenge the WD4
         elif self.is_checking_challenge:
             if command not in [".y", ".n"]:
@@ -722,8 +733,7 @@ class Game:
                             "**"
                             + self.players[self.turn].get_user().name
                             + "** draws six cards.")
-                    pm_str = ("You will draw six cards. You have drawn the "
-                            + "following:```")
+                    pm_str = ("You have drawn the following six cards:```\n")
                     for i in range(6):
                         if not self.__give_topdeck_to_player__(
                                 self.players[self.turn]):
@@ -741,8 +751,7 @@ class Game:
                             + self.players[
                                 self.wd4_player_index].get_user().name
                             + "** draws four cards.")
-                    pm_str = ("You will draw four cards. You have drawn the "
-                            + "following:```")
+                    pm_str = ("You have drawn the following four cards:```\n")
                     for i in range(4):
                         if not self.__give_topdeck_to_player__(
                                 self.players[self.wd4_player_index]):
@@ -762,8 +771,7 @@ class Game:
                         "**"
                         + self.players[self.turn].get_user().name
                         + "** draws four cards.")
-                pm_str = ("You will draw four cards. You have drawn the "
-                        + "following:```")
+                pm_str = ("You have drawn the following four cards:```\n")
                 for i in range(4):
                     if not self.__give_topdeck_to_player__(
                             self.players[self.turn]):
@@ -787,22 +795,23 @@ class Game:
             if self.winner_index != -1:
                 return False
             await self.announce_turn()
-            return True
         # The current player chose to draw
         elif self.is_drawing:
-            if command not in [".k", ".p"]:
+            if command not in [".k", ".keep", ".p", ".play"]:
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
             new_card = self.players[self.turn].get_cards()[-1]
             # Only play the card if the card can be played
-            if content.split()[0] == ".p":
+            if command in [".p", ".play"]:
                 if self.__can_be_played__(new_card):
                     self.is_drawing = False
                     await self.__play_card__(-1)
                     if (not self.is_playing_wild
                             and not self.is_playing_wd4):
+                        if self.winner_index != -1:
+                            return False
                         await self.announce_turn()
-                        return True
+                    return True
                 await message_player(
                         self.players[self.turn],
                         "This card cannot be played. You have no choice "
@@ -817,15 +826,14 @@ class Game:
             self.__next_turn__()
             await self.announce_turn()
             self.is_drawing = False
-            return True
         # Normal state
         else:
             if ((not content.strip())
-                    or (command not in [".p", ".d"])):
+                    or (command not in [".p", ".play", ".d", ".draw"])):
                 await message_player(self.players[self.turn], "Invalid input.")
                 return True
             # Choosing a card to play
-            elif command == ".p":
+            elif command in [".p", ".play"]:
                 if len(content.split()) < 2:
                     await message_player(
                             self.players[self.turn],
@@ -851,14 +859,12 @@ class Game:
                         if self.winner_index != -1:
                             return False
                         await self.announce_turn()
-                    return True
                 else:
                     await message_player(
                             self.players[self.turn],
                             "This card cannot be played.")
-                    return True
             # Case of drawing a card
-            elif command == ".d":
+            else:
                 if not self.__give_topdeck_to_player__(
                         self.players[self.turn]):
                     await announce(
@@ -885,9 +891,9 @@ class Game:
                         self.players[self.turn],
                         "You have drawn `"
                         + str(new_card)
-                        + "`. Type `.k`(keep) or `.p`(play).")
+                        + "`. Type `.k(eep)` or `.p(lay)`.")
                 self.is_drawing = True
-            return True
+        return True
 
     async def announce_turn(self):
         """Announces whose turn it is currently"""
@@ -904,7 +910,7 @@ class Game:
                     + "**.")
         await announce([self.players[self.turn]], announce_str)
         pm_str = (
-                "It is now your turn. You have the following cards:"
+                "It is now ***your*** turn. You have the following cards:"
                 + self.players[self.turn].get_hand()
                 + "\nThe last discarded card is `"
                 + str(self.discard[-1])
@@ -943,7 +949,7 @@ class Game:
         Argument:
         user(discord.User): The user who requested the turn
         """
-        content = "```"
+        content = "```\n"
         if self.clockwise:
             content += "Left to right\n"
         else:
@@ -1063,7 +1069,7 @@ async def start(input_players, input_client, input_channel):
     await announce([input_players],
             "The game is played by entering commands to the bot"
             + " by PM. Please check the PM with the bot for instructions. "
-            + "Enter `.help` for further help.")
+            + "Enter `.unohelp` for further help.")
     game = Game(players)
     if not await game.announce_if_first_discard_wild():
         await game.announce_turn()
@@ -1079,16 +1085,17 @@ async def send_help(user):
     global client
     await client.send_message(
             user,
-            "```.p <card index> - During your turn, plays a card with the given"
-            + " index.\n"
-            + ".d = During your turn, draws a card for you.\n"
+            "```\n.p <card index> - During your turn, plays a card with the "
+            + "given index.\n"
+            + ".d - During your turn, draws a card for you.\n"
             + ".hand - Shows what cards you currently have.\n"
             + ".turn - Shows whose turn it currently is and how many cards they"
             + " have.\n"
             + ".last - Shows which card was discarded last.\n"
             + ".send <message> - Sends <message> to everybody and the "
             + "channel.\n"
-            + ".help - You probably already know this.```")
+            + ".ustop - Stops the current game.\n"
+            + ".unohelp - You probably already know this.```")
             
 
 
@@ -1105,7 +1112,8 @@ async def process_message(message):
         if message.author == players[i].get_user():
             index = i
             break
-    if message.content.split()[0] == ".ustop":
+    command = message.content.split()[0]
+    if command == ".ustop":
         if index != -1:
             await announce(
                     [players[index]],
@@ -1114,31 +1122,28 @@ async def process_message(message):
                     + "** has stopped the game.")
             await message_player(players[index], "The game has stopped.")
             return False
-        return True
-    elif message.content.split()[0] == ".hand":
-        if index == -1:
-            return True
-        await game.request_hand(message.author)
-        return True
-    elif message.content.split()[0] == ".turn":
+    elif command == ".hand":
+        if index != -1:
+            await game.request_hand(message.author)
+    elif command == ".turn":
         await game.request_turn(message.author)
-        return True
-    elif message.content.split()[0] == ".last":
+    elif command == ".last":
         await game.request_last_discard(message.author)
-        return True
-    elif message.content.split()[0] == ".send":
-        if index == -1:
-            return True
-        await announce(
-                [players[index]],
-                "**["
-                + players[index].get_user().name
-                + "]** "
-                + message.content[5:].strip())
-        return True
-    elif message.content.split()[0] == ".help":
+    elif command in [".send", ".s"]:
+        if index != -1:
+            split_str = ""
+            if command == ".send":
+                split_str = message.content[5:].strip()
+            else:
+                split_str = message.content[2:].strip()
+            await announce(
+                    [players[index]],
+                    "**["
+                    + players[index].get_user().name
+                    + "]** "
+                    + split_str)
+    elif command == ".unohelp":
         await send_help(message.author)
-        return True
     elif index != -1:
         if not await game.run(message):
             winner_index = game.game_end()
