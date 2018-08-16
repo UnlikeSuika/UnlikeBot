@@ -1,12 +1,11 @@
 import discord
-import random
+import random, datetime
 import uno
 
 client = discord.Client()
 
-token_file = open("token.txt", "r")
-token = token_file.read()
-token_file.close()
+with open("token.txt", "r") as token_file:
+    token = token_file.read();
 
 is_curious = False
 channels = []
@@ -14,9 +13,14 @@ channels = []
 is_playing_uno = False
 uno_players = []
 uno_host_channel = None
+log = None
 
 @client.event
 async def on_ready():
+    global log
+    open_log()
+    log.write("========== {0} ==========\n".format(str(datetime.datetime.now())))
+    log.write("Bot is now booting up.\n")
     print("Name: " + client.user.name)
     print("ID: " + client.user.id)
     global channels
@@ -25,15 +29,22 @@ async def on_ready():
         try:
             await client.send_message(channel, "UnlikeBot, up and running!")
         except:
-            print("Cannot access channel: " + channel.name)
+            pass
+    close_log()
 
 
 @client.event
 async def on_message(message):
-    print("----- on_message -----")
-    print("author name: " + message.author.name)
-    print("content: "+message.content)
-    print("server: "+str(message.channel))
+    global log
+    open_log()
+    log.write("----- on_message -----\n")
+    log.write("timestamp: {0}\n".format(str(message.timestamp)))
+    log.write("author name: {0}\n".format(message.author.name))
+    log.write("author ID: {0}\n".format(message.author.id))
+    log.write("content: {0}\n".format(message.content))
+    log.write("server: {0}\n".format(str(message.server)))
+    log.write("channel: {0}\n".format(str(message.channel)))
+    close_log()
     if message.author == client.user:
         return
 
@@ -202,6 +213,15 @@ async def post_command_list(channel):
     content += "`.unlikesuika` - Pings the master.\n"
     content += "`ayy` - lmao"
     await client.send_message(channel, content)
-    
+
+def open_log():
+    global log
+    if (log is None) or log.closed:
+        log = open("log.txt", "a")
+
+def close_log():
+    global log
+    if (not log is None) and (not log.closed):
+        log.close()
 
 client.run(token)

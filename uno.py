@@ -12,10 +12,11 @@ import random
 from random import shuffle
 import discord
 
-client = None   # discord.Client
-players = []    # list of Player
-channel = None  # discord.Channel
-game = None     # Game
+client = None               # discord.Client
+players = []                # list of Player
+channel = None              # discord.Channel
+game = None                 # Game
+announce_to_channel = False # Boolean
 
 class CardColor(Enum):
     """Enumeration of colors of UNO cards."""
@@ -1029,12 +1030,13 @@ async def announce(except_players, content):
     except_players(list of Player): Players to not send messages to
     content       (str)           : The content of the message
     """
-    global players, client, channel
+    global players, client, channel, announce_to_channel
     for player in players:
         if player in except_players:
             continue
         await client.send_message(player.user, content)
-    await client.send_message(channel, content)
+    if announce_to_channel:
+        await client.send_message(channel, content)
 
 
 async def message_player(player, content):
@@ -1106,7 +1108,7 @@ async def process_message(message):
     Argument:
     message(discord.Message): The message to process
     """
-    global players, game
+    global players, game, announce_to_channel
     index = -1
     for i in range(len(players)):
         if message.author == players[i].get_user():
@@ -1122,6 +1124,23 @@ async def process_message(message):
                     + "** has stopped the game.")
             await message_player(players[index], "The game has stopped.")
             return False
+    elif command == ".announce":
+        if (len(message.content.split()) < 2 or
+                message.content.split()[1].lower() not in ["on", "off"]):
+            await client.send_message(
+                    message.channel,
+                    "Enter `.announce on` or `.announce off` to toggle on/off "
+                    "the announcement in the main channel.")
+        elif announce_to_channel:
+            announce_to_channel = False
+            await client.send_message(
+                    channel,
+                    "The game will no longer be announced to this channel.")
+        else:
+            announce_to_channel = True
+            await client.send_message(
+                    channel,
+                    "The game will be fully announced to this channel.")
     elif command == ".hand":
         if index != -1:
             await game.request_hand(message.author)
