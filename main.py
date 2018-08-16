@@ -25,11 +25,13 @@ async def on_ready():
     print("ID: " + client.user.id)
     global channels
     channels = client.get_all_channels()
+    """
     for channel in channels:
         try:
             await client.send_message(channel, "UnlikeBot, up and running!")
         except:
             pass
+    """
     close_log()
 
 

@@ -4,3 +4,5 @@ token.txt
 *.pyc
 \__pycache__
 \backup
+\.idea
+log.txt
